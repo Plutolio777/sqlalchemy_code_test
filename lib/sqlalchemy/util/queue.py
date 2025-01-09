@@ -60,26 +60,34 @@ class QueueCommon(Generic[_T]):
     def __init__(self, maxsize: int = 0, use_lifo: bool = False):
         ...
 
+    # mark queue是否为空
     def empty(self) -> bool:
         raise NotImplementedError()
 
+
+    # mark queue是否满
     def full(self) -> bool:
         raise NotImplementedError()
 
+    # mark queue的元素数量
     def qsize(self) -> int:
         raise NotImplementedError()
 
+    # mark 入队不等待
     def put_nowait(self, item: _T) -> None:
         raise NotImplementedError()
 
+    # mark 入队如果满了会阻塞直到timeout
     def put(
         self, item: _T, block: bool = True, timeout: Optional[float] = None
     ) -> None:
         raise NotImplementedError()
 
+    # mark 出队不等待
     def get_nowait(self) -> _T:
         raise NotImplementedError()
 
+    # mark 出队如果满了会阻塞直到timeout
     def get(self, block: bool = True, timeout: Optional[float] = None) -> _T:
         raise NotImplementedError()
 
@@ -94,20 +102,24 @@ class Queue(QueueCommon[_T]):
 
         If `use_lifo` is True, this Queue acts like a Stack (LIFO).
         """
-
+        # mark 创建双端队列对象 并指定最大容量
         self._init(maxsize)
         # mutex must be held whenever the queue is mutating.  All methods
         # that acquire mutex must release it before returning.  mutex
         # is shared between the two conditions, so acquiring and
         # releasing the conditions also acquires and releases mutex.
+        # mark 创建一个可重入锁
         self.mutex = threading.RLock()
         # Notify not_empty whenever an item is added to the queue; a
         # thread waiting to get is notified then.
+        # mark 队列不为空信号量
         self.not_empty = threading.Condition(self.mutex)
         # Notify not_full whenever an item is removed from the queue;
         # a thread waiting to put is notified then.
+        # mark 队列已满信号量
         self.not_full = threading.Condition(self.mutex)
         # If this queue uses LIFO or FIFO
+        # mark 出队模式FIFO还是LIFO
         self.use_lifo = use_lifo
 
     def qsize(self) -> int:
@@ -144,7 +156,7 @@ class Queue(QueueCommon[_T]):
         immediately available, else raise the ``Full`` exception
         (`timeout` is ignored in that case).
         """
-
+        # mark 等待队列非满信号
         with self.not_full:
             if not block:
                 if self._full():
@@ -214,6 +226,7 @@ class Queue(QueueCommon[_T]):
         return self.get(False)
 
     def _init(self, maxsize: int) -> None:
+        # mark QueuePool实际上是封装了一个双端队列
         self.maxsize = maxsize
         self.queue = deque()
 
@@ -224,7 +237,7 @@ class Queue(QueueCommon[_T]):
         return not self.queue
 
     def _full(self) -> bool:
-        return self.maxsize > 0 and len(self.queue) == self.maxsize
+        return 0 < self.maxsize == len(self.queue)
 
     def _put(self, item: _T) -> None:
         self.queue.append(item)

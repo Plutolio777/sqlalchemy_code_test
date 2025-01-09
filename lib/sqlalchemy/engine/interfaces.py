@@ -2834,6 +2834,7 @@ class CreateEnginePlugin:
         """
         self.url = url
 
+    # mark 插件提供的钩子 用于修改URL对象
     def update_url(self, url: URL) -> URL:
         """Update the :class:`_engine.URL`.
 
@@ -2851,6 +2852,7 @@ class CreateEnginePlugin:
         """
         raise NotImplementedError()
 
+    # mark 插件提供的钩子 用于创建引擎前解析和修改方言引擎配置参数
     def handle_dialect_kwargs(
         self, dialect_cls: Type[Dialect], dialect_args: Dict[str, Any]
     ) -> None:

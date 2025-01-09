@@ -2921,15 +2921,15 @@ class Engine(
     hide_parameters: bool
 
     def __init__(
-        self,
-        pool: Pool,
-        dialect: Dialect,
-        url: URL,
-        logging_name: Optional[str] = None,
-        echo: Optional[_EchoFlagType] = None,
-        query_cache_size: int = 500,
-        execution_options: Optional[Mapping[str, Any]] = None,
-        hide_parameters: bool = False,
+            self,
+            pool: Pool,  # mark 连接池
+            dialect: Dialect,  # mark 方言实例
+            url: URL,  # mark 解析后的URL实例
+            logging_name: Optional[str] = None,  # mark 日志名称
+            echo: Optional[_EchoFlagType] = None,  # mark 是否打印日志
+            query_cache_size: int = 500,  # mark 查询缓存大小
+            execution_options: Optional[Mapping[str, Any]] = None,  # mark 执行参数
+            hide_parameters: bool = False,
     ):
         self.pool = pool
         self.url = url
@@ -2938,13 +2938,16 @@ class Engine(
             self.logging_name = logging_name
         self.echo = echo
         self.hide_parameters = hide_parameters
+        # mark 初始化查询缓存时实例
         if query_cache_size != 0:
             self._compiled_cache = util.LRUCache(
                 query_cache_size, size_alert=self._lru_size_alert
             )
         else:
             self._compiled_cache = None
+        # mark 初始化日志实例
         log.instance_logger(self, echoflag=echo)
+
         if execution_options:
             self.update_execution_options(**execution_options)
 
@@ -2998,8 +3001,11 @@ class Engine(
             :meth:`_engine.Engine.execution_options`
 
         """
+        # mark ConnectionEvents 可以注册的监听钩子
         self.dispatch.set_engine_execution_options(self, opt)
+
         self._execution_options = self._execution_options.union(opt)
+        # mark 方言设置执行参数
         self.dialect.set_engine_execution_options(self, opt)
 
     @overload
@@ -3134,7 +3140,9 @@ class Engine(
         return "Engine(%r)" % (self.url,)
 
     def dispose(self, close: bool = True) -> None:
-        """Dispose of the connection pool used by this
+        """
+        mark 用于dispose连接池
+        Dispose of the connection pool used by this
         :class:`_engine.Engine`.
 
         A new connection pool is created immediately after the old one has been

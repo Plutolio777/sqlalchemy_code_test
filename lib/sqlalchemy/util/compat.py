@@ -29,7 +29,6 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 
-
 py312 = sys.version_info >= (3, 12)
 py311 = sys.version_info >= (3, 11)
 py310 = sys.version_info >= (3, 10)
@@ -41,7 +40,7 @@ cpython = platform.python_implementation() == "CPython"
 win32 = sys.platform.startswith("win")
 osx = sys.platform.startswith("darwin")
 arm = "aarch" in platform.machine().lower()
-is64bit = sys.maxsize > 2**32
+is64bit = sys.maxsize > 2 ** 32
 
 has_refcount_gc = bool(cpython)
 
@@ -61,38 +60,43 @@ class FullArgSpec(typing.NamedTuple):
 def inspect_getfullargspec(func: Callable[..., Any]) -> FullArgSpec:
     """Fully vendored version of getfullargspec from Python 3.3."""
 
+    # mark 如果是实例方法 通过__func__获取方法本森
     if inspect.ismethod(func):
         func = func.__func__
     if not inspect.isfunction(func):
         raise TypeError(f"{func!r} is not a Python function")
 
+    # mark 获取函数的代码对象
     co = func.__code__
     if not inspect.iscode(co):
         raise TypeError(f"{co!r} is not a code object")
 
+    # mark 获取位置参数和定义在 * 后面的只能kw传递的参数
     nargs = co.co_argcount
     names = co.co_varnames
     nkwargs = co.co_kwonlyargcount
     args = list(names[:nargs])
-    kwonlyargs = list(names[nargs : nargs + nkwargs])
+    kwonlyargs = list(names[nargs: nargs + nkwargs])
 
     nargs += nkwargs
     varargs = None
+    # mark 如果存在*args
     if co.co_flags & inspect.CO_VARARGS:
         varargs = co.co_varnames[nargs]
         nargs = nargs + 1
+    # mark 如果存在**kwargs
     varkw = None
     if co.co_flags & inspect.CO_VARKEYWORDS:
         varkw = co.co_varnames[nargs]
 
     return FullArgSpec(
-        args,
-        varargs,
-        varkw,
-        func.__defaults__,
-        kwonlyargs,
-        func.__kwdefaults__,
-        func.__annotations__,
+        args,  # mark 普通参数列表 包括带默认值的和不带默认值的
+        varargs,  # mark *args 参数 没有则为None
+        varkw,  # mark **kwargs 参数 没有则为None
+        func.__defaults__,  # mark 获取带默认值的参数的默认值
+        kwonlyargs,  # mark 只能通过kw传递的参数列表
+        func.__kwdefaults__,  # mark 获取只能通过kw传递的参数默认值
+        func.__annotations__,  # mark 函数的注解
     )
 
 
@@ -100,7 +104,6 @@ if typing.TYPE_CHECKING or py38:
     from importlib import metadata as importlib_metadata
 else:
     import importlib_metadata  # noqa
-
 
 if typing.TYPE_CHECKING or py39:
     # pep 584 dict union
@@ -112,13 +115,13 @@ else:
         a.update(b)
         return a
 
-
 if py310:
     anext_ = anext
 else:
 
     _NOT_PROVIDED = object()
     from collections.abc import AsyncIterator
+
 
     async def anext_(async_iterator, default=_NOT_PROVIDED):
         """vendored from https://github.com/python/cpython/pull/8895"""
@@ -182,19 +185,19 @@ def _formatannotation(annotation, base_module=None):
 
 
 def inspect_formatargspec(
-    args: List[str],
-    varargs: Optional[str] = None,
-    varkw: Optional[str] = None,
-    defaults: Optional[Sequence[Any]] = None,
-    kwonlyargs: Optional[Sequence[str]] = (),
-    kwonlydefaults: Optional[Mapping[str, Any]] = {},
-    annotations: Mapping[str, Any] = {},
-    formatarg: Callable[[str], str] = str,
-    formatvarargs: Callable[[str], str] = lambda name: "*" + name,
-    formatvarkw: Callable[[str], str] = lambda name: "**" + name,
-    formatvalue: Callable[[Any], str] = lambda value: "=" + repr(value),
-    formatreturns: Callable[[Any], str] = lambda text: " -> " + str(text),
-    formatannotation: Callable[[Any], str] = _formatannotation,
+        args: List[str],
+        varargs: Optional[str] = None,
+        varkw: Optional[str] = None,
+        defaults: Optional[Sequence[Any]] = None,
+        kwonlyargs: Optional[Sequence[str]] = (),
+        kwonlydefaults: Optional[Mapping[str, Any]] = {},
+        annotations: Mapping[str, Any] = {},
+        formatarg: Callable[[str], str] = str,
+        formatvarargs: Callable[[str], str] = lambda name: "*" + name,
+        formatvarkw: Callable[[str], str] = lambda name: "**" + name,
+        formatvalue: Callable[[Any], str] = lambda value: "=" + repr(value),
+        formatreturns: Callable[[Any], str] = lambda text: " -> " + str(text),
+        formatannotation: Callable[[Any], str] = _formatannotation,
 ) -> str:
     """Copy formatargspec from python 3.7 standard library.
 

@@ -126,6 +126,7 @@ class _Dispatch(_DispatchCommon[_ET]):
 
     _joined_dispatch_cls: Type[_JoinedDispatcher[_ET]]
 
+    # mark 指向Event类的指针
     _events: Type[_HasEventsDispatch[_ET]]
     """reference back to the Events class.
 
@@ -142,6 +143,7 @@ class _Dispatch(_DispatchCommon[_ET]):
         self._instance_cls = instance_cls
 
         if instance_cls:
+            # mark 实例级别的监听器挂载
             assert parent is not None
             try:
                 self._empty_listeners = self._empty_listener_reg[instance_cls]
@@ -206,8 +208,12 @@ class _Dispatch(_DispatchCommon[_ET]):
         self, other: _Dispatch[_ET], only_propagate: bool = True
     ) -> None:
         """Populate from the listeners in another :class:`_Dispatch`
-        object."""
+        object.
+
+        mark 用另外的Dispatch更新
+        """
         for ls in other._event_descriptors:
+            # mark Empty没有具体实现不用管
             if isinstance(ls, _EmptyListener):
                 continue
             getattr(self, ls.name).for_modify(self)._update(
@@ -290,12 +296,15 @@ class _HasEventsDispatch(Generic[_ET]):
         # there's all kinds of ways to do this,
         # i.e. make a Dispatch class that shares the '_listen' method
         # of the Event class, this is the straight monkeypatch.
+        # mark 获取 EVENT类定义的dispatch
         if hasattr(cls, "dispatch"):
             dispatch_base = cls.dispatch.__class__
         else:
             dispatch_base = _Dispatch
 
+        # mark 动态装载事件名称
         event_names = [k for k in dict_ if _is_event_name(k)]
+        # mark 动态代理新的_Dispatch类 该类具备Events上的所有事件类型
         dispatch_cls = cast(
             "Type[_Dispatch[_ET]]",
             type(
@@ -305,24 +314,34 @@ class _HasEventsDispatch(Generic[_ET]):
             ),
         )
 
+        # mark 设置新的_Dispatch的事件名称
         dispatch_cls._event_names = event_names
+
+        # mark event.dispatch -> dispatch
+        # mark dispatch._event -> event
+        # mark 这个dispatch_inst 是一个顶级事件调度器
         dispatch_inst = cls._set_dispatch(cls, dispatch_cls)
+
+        # mark 将Events类本身的时间方法挂载到跟调度器上
         for k in dispatch_cls._event_names:
             setattr(dispatch_inst, k, _ClsLevelDispatch(cls, dict_[k]))
+            # mark 添加到注册表 报错说有的事件名称 -> 拥有该事件的Events类
             _registrars[k].append(cls)
 
+        # mark 将父类的时间类型也挂载到子类 父类的应该已经注册过了
         for super_ in dispatch_cls.__bases__:
             if issubclass(super_, _Dispatch) and super_ is not _Dispatch:
                 for ls in super_._events.dispatch._event_descriptors:
                     setattr(dispatch_inst, ls.name, ls)
                     dispatch_cls._event_names.append(ls.name)
 
+        # mark 挂载到event_target上
         if getattr(cls, "_dispatch_target", None):
             dispatch_target_cls = cls._dispatch_target
             assert dispatch_target_cls is not None
             if (
-                hasattr(dispatch_target_cls, "__slots__")
-                and "_slots_dispatch" in dispatch_target_cls.__slots__  # type: ignore  # noqa: E501
+                    hasattr(dispatch_target_cls, "__slots__")
+                    and "_slots_dispatch" in dispatch_target_cls.__slots__  # type: ignore  # noqa: E501
             ):
                 dispatch_target_cls.dispatch = slots_dispatcher(cls)
             else:
@@ -415,6 +434,8 @@ class _JoinedDispatcher(_DispatchCommon[_ET]):
         return self.parent._events
 
 
+# mark 一个延时描述器 首次加载event的时候 会创建_Dispatch实例(parent为None) 并挂载到Event.dispatch
+# mark 用描述器包装event类并挂载到event target上 当target首次调用dispatch时会重新创建dispatch实例覆盖描述器
 class dispatcher(Generic[_ET]):
     """Descriptor used by target classes to
     deliver the _Dispatch class at the class level
@@ -438,9 +459,10 @@ class dispatcher(Generic[_ET]):
         ...
 
     def __get__(self, obj: Any, cls: Type[Any]) -> Any:
+        print(11111)
         if obj is None:
             return self.dispatch
-
+        # mark 首次调用
         disp = self.dispatch._for_instance(obj)
         try:
             obj.__dict__["dispatch"] = disp

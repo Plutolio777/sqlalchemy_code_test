@@ -475,12 +475,14 @@ class DefaultDialect(Dialect):
 
     def initialize(self, connection):
         try:
+            # mark 获取服务版本信息
             self.server_version_info = self._get_server_version_info(
                 connection
             )
         except NotImplementedError:
             self.server_version_info = None
         try:
+            # mark 获取默认的schema
             self.default_schema_name = self._get_default_schema_name(
                 connection
             )
@@ -488,6 +490,7 @@ class DefaultDialect(Dialect):
             self.default_schema_name = None
 
         try:
+            # mark 获取默认的隔离级别
             self.default_isolation_level = self.get_default_isolation_level(
                 connection.connection.dbapi_connection
             )
@@ -588,6 +591,7 @@ class DefaultDialect(Dialect):
     def set_engine_execution_options(
         self, engine: Engine, opts: Mapping[str, Any]
     ) -> None:
+        #  mark 取连接参数的交集
         supported_names = set(self.connection_characteristics).intersection(
             opts
         )

@@ -196,7 +196,7 @@ class URL(NamedTuple):
             :meth:`_engine.URL.update_query` methods.
 
         """
-
+        # mark 这里就是创建了命名元祖没什么东西
         return cls(
             cls._assert_str(drivername, "drivername"),
             cls._assert_none_str(username, "username"),
@@ -719,6 +719,7 @@ class URL(NamedTuple):
     def _instantiate_plugins(
         self, kwargs: Mapping[str, Any]
     ) -> Tuple[URL, List[Any], Dict[str, Any]]:
+        # mark 获取url中的plugin参数
         plugin_names = util.to_list(self.query.get("plugin", ()))
         plugin_names += kwargs.get("plugins", [])
 
@@ -819,28 +820,40 @@ class URL(NamedTuple):
 
 
 def make_url(name_or_url: Union[str, URL]) -> URL:
-    """Given a string, produce a new URL instance.
+    """
+    根据给定的字符串生成一个新的 URL 实例，或直接返回传入的 URL 实例。
 
-    The format of the URL generally follows `RFC-1738
-    <https://www.ietf.org/rfc/rfc1738.txt>`_, with some exceptions, including
-    that underscores, and not dashes or periods, are accepted within the
-    "scheme" portion.
+    参数:
+    name_or_url (Union[str, URL]): 输入可以是表示 URL 的字符串或已经是一个 URL 实例。
+                                   如果是字符串，则会根据指定格式解析为 URL 实例；
+                                   如果已经是 URL 实例，则直接返回。
 
-    If a :class:`.URL` object is passed, it is returned as is.
+    返回值:
+    URL: 解析后的 URL 实例或传入的 URL 实例。
 
+    说明:
+    - URL 格式通常遵循 `RFC-1738 <https://www.ietf.org/rfc/rfc1738.txt>`_，但有一些例外，
+      比如允许在 "scheme" 部分使用下划线而不是连字符或点号。
+    - 如果传入的是 :class:`.URL` 对象，则直接返回该对象。
+
+    参见:
     .. seealso::
 
         :ref:`database_urls`
-
     """
 
+    # mark 解析url字符串生成URL对象
     if isinstance(name_or_url, str):
+        # 如果输入是字符串，则调用 _parse_url 函数进行解析并返回 URL 实例
         return _parse_url(name_or_url)
     else:
+        # 如果输入已经是 URL 实例，则直接返回
         return name_or_url
 
 
 def _parse_url(name: str) -> URL:
+    # mark 通过该正则解析
+    # mark {db name+driver name}://{user}:{password}@{host}:{port}/{database}?{query:a=b&c=d&a=a}
     pattern = re.compile(
         r"""
             (?P<name>[\w\+]+)://
@@ -865,6 +878,7 @@ def _parse_url(name: str) -> URL:
     if m is not None:
         components = m.groupdict()
         query: Optional[Dict[str, Union[str, List[str]]]]
+        # mark 解析数据库配置参数
         if components["query"] is not None:
             query = {}
 
@@ -891,7 +905,7 @@ def _parse_url(name: str) -> URL:
 
         if components["port"]:
             components["port"] = int(components["port"])
-
+        # mark 创建URL实例
         return URL.create(name, **components)  # type: ignore
 
     else:

@@ -124,8 +124,12 @@ class QueuePool(Pool):
 
         """
         Pool.__init__(self, creator, **kw)
+        # mark 生成用于保存池化连接的队列
         self._pool = self._queue_class(pool_size, use_lifo=use_lifo)
+        # mark overflow初始会变成 -pool_size
         self._overflow = 0 - pool_size
+
+        # mark max_overflow表示池子满的时候可以溢出的连接 溢出的连接close的时候将会断开并被丢弃
         self._max_overflow = -1 if pool_size == 0 else max_overflow
         self._timeout = timeout
         self._overflow_lock = threading.Lock()
@@ -133,6 +137,7 @@ class QueuePool(Pool):
     def _do_return_conn(self, record: ConnectionPoolEntry) -> None:
         try:
             self._pool.put(record, False)
+        # mark 如果池子满了 这个连接就不要了
         except sqla_queue.Full:
             try:
                 record.close()
@@ -140,8 +145,10 @@ class QueuePool(Pool):
                 self._dec_overflow()
 
     def _do_get(self) -> ConnectionPoolEntry:
+        # mark 是否允许池溢出
         use_overflow = self._max_overflow > -1
 
+        # mark 当前已溢出的连接已经达到上限 wait表示是否需要等待
         wait = use_overflow and self._overflow >= self._max_overflow
         try:
             return self._pool.get(wait, self._timeout)
@@ -151,6 +158,7 @@ class QueuePool(Pool):
             # people the real error is queue.Empty which it isn't.
             pass
         if use_overflow and self._overflow >= self._max_overflow:
+            # mark 如果是刚进入到了溢出满的状态 则继续调用do_get
             if not wait:
                 return self._do_get()
             else:
@@ -160,9 +168,10 @@ class QueuePool(Pool):
                     % (self.size(), self.overflow(), self._timeout),
                     code="3o7r",
                 )
-
+        # mark 建立溢出连接
         if self._inc_overflow():
             try:
+                # mark 返回新的连接 调用pool的接口
                 return self._create_connection()
             except:
                 with util.safe_reraise():
@@ -172,9 +181,11 @@ class QueuePool(Pool):
             return self._do_get()
 
     def _inc_overflow(self) -> bool:
+        # mark 没有溢出限制加不加锁无所谓了？？？
         if self._max_overflow == -1:
             self._overflow += 1
             return True
+        # mark 上锁 增加当前溢出量
         with self._overflow_lock:
             if self._overflow < self._max_overflow:
                 self._overflow += 1
@@ -210,6 +221,7 @@ class QueuePool(Pool):
     def dispose(self) -> None:
         while True:
             try:
+                # mark 这里调用的是ConnectionRecord.close方法 后面也是会调用方言的方法来关闭连接
                 conn = self._pool.get(False)
                 conn.close()
             except sqla_queue.Empty:

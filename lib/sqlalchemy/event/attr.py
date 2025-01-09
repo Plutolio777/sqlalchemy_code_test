@@ -77,6 +77,7 @@ class RefCollection(util.MemoizedSlots, Generic[_ET]):
 
     ref: weakref.ref[RefCollection[_ET]]
 
+    # mark 由于继承了 util.MemoizedSlots 因此 ref会在调用 obj.ref的时候 调用该方法加载
     def _memoized_attr_ref(self) -> weakref.ref[RefCollection[_ET]]:
         return weakref.ref(self, registry._collection_gced)
 
@@ -137,7 +138,9 @@ class _ClsLevelDispatch(RefCollection[_ET]):
         parent_dispatch_cls: Type[_HasEventsDispatch[_ET]],
         fn: _ListenerFnType,
     ):
+        # mark 事件方法名称
         self.name = fn.__name__
+        # mark 事件类的名称
         self.clsname = parent_dispatch_cls.__name__
         argspec = util.inspect_getfullargspec(fn)
         self.arg_names = argspec.args[1:]

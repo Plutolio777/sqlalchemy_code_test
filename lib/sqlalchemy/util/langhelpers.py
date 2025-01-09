@@ -390,6 +390,7 @@ def _inspect_func_args(fn):
         # use fn.__code__ plus flags to reduce method call overhead
         co = fn.__code__
         nargs = co.co_argcount
+        # mark co.co_flags & co_varkeywords判断是否存在kwargs参数
         return (
             list(co.co_varnames[:nargs]),
             bool(co.co_flags & co_varkeywords),
@@ -444,6 +445,7 @@ def get_cls_kwargs(
     )
 
     if has_init:
+        # mark 获取函数入参以及是否存在kwargs参数
         names, has_kw = _inspect_func_args(ctr)
         _set.update(names)
 
@@ -488,8 +490,12 @@ def get_callable_argspec(
     raise a TypeError.
 
     """
+    # mark 内置函数抛异常
     if inspect.isbuiltin(fn):
         raise TypeError("Can't inspect builtin: %s" % fn)
+    # mark 为什么要如此区分 一个定义在类中的方法 class Test
+    # mark 如果Test.test 为普通方法 而 Test().test为实力绑定方法
+    # mark 实例绑定方法
     elif inspect.isfunction(fn):
         if _is_init and no_self:
             spec = compat.inspect_getfullargspec(fn)
@@ -504,7 +510,10 @@ def get_callable_argspec(
             )
         else:
             return compat.inspect_getfullargspec(fn)
+    # mark 实例绑定方法
     elif inspect.ismethod(fn):
+        # mark 实例绑定方法 __self__ 指向实例本身
+        fn: types.MethodType
         if no_self and (_is_init or fn.__self__):
             spec = compat.inspect_getfullargspec(fn.__func__)
             return compat.FullArgSpec(
@@ -519,6 +528,8 @@ def get_callable_argspec(
         else:
             return compat.inspect_getfullargspec(fn.__func__)
     elif inspect.isclass(fn):
+        fn: type
+        # mark 如果是一个类获取__init__的传参
         return get_callable_argspec(
             fn.__init__, no_self=no_self, _is_init=True
         )

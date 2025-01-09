@@ -28,7 +28,9 @@ NO_RETVAL = util.symbol("NO_RETVAL")
 def _event_key(
     target: _ET, identifier: str, fn: _ListenerFnType
 ) -> _EventKey[_ET]:
+    # mark 从时间注册表中获取事件基类
     for evt_cls in _registrars[identifier]:
+        # mark 获取事件挂载目标 每个事件基类都有 _accept_with
         tgt = evt_cls._accept_with(target, identifier)
         if tgt is not None:
             return _EventKey(target, identifier, fn, tgt)

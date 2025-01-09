@@ -121,10 +121,14 @@ def _stored_in_collection(
     event_key: _EventKey[_ET], owner: RefCollection[_ET]
 ) -> bool:
     key = event_key._key
-
+    # mark 根据event key 从_key_to_collection 中获取值 如果不存在 返回空dict
+    # mark _key_to_collection 中存储的是  "weakref.ref[ListenerCollection]", "weakref.ref[_ListenerFnType]",
     dispatch_reg = _key_to_collection[key]
 
+    # mark 获取弱引用
     owner_ref = owner.ref
+
+    # mark 将 event key中的函数进行弱引用包裹
     listen_ref = weakref.ref(event_key._listen_fn)
 
     if owner_ref in dispatch_reg:
@@ -239,9 +243,13 @@ class _EventKey(Generic[_ET]):
         dispatch_target: Any,
         _fn_wrap: Optional[_ListenerFnType] = None,
     ):
+        # mark 当前事件需要挂载的对象
         self.target = target
+        # mark 当前事件字符串标识
         self.identifier = identifier
+        # mark 事件具体执行函数
         self.fn = fn  # type: ignore[assignment]
+        # mark 判断fn是否为实例方法
         if isinstance(fn, types.MethodType):
             self.fn_key = id(fn.__func__), id(fn.__self__)
         else:
@@ -277,6 +285,7 @@ class _EventKey(Generic[_ET]):
                 _fn_wrap=self.fn_wrap,
             )
 
+    # mark 该方法将监听事件挂载到具体的监听点
     def listen(self, *args: Any, **kw: Any) -> None:
         once = kw.pop("once", False)
         once_unless_exception = kw.pop("_once_unless_exception", False)
@@ -288,6 +297,7 @@ class _EventKey(Generic[_ET]):
             self._listen_fn,
         )
 
+        # mark 获取dispatch上的监听集合 初始为EmptyListener实例
         dispatch_collection = getattr(target.dispatch, identifier)
 
         adjusted_fn = dispatch_collection._adjust_fn_spec(fn, named)
@@ -342,7 +352,7 @@ class _EventKey(Generic[_ET]):
         target, identifier = self.dispatch_target, self.identifier
 
         dispatch_collection = getattr(target.dispatch, identifier)
-
+        # mark 这里就爱那个EmptyListener转换成CollectionListener
         for_modify = dispatch_collection.for_modify(target.dispatch)
         if asyncio:
             for_modify._set_asyncio()

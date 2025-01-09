@@ -544,12 +544,17 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
     kwargs.pop("empty_in_strategy", None)
 
     # create url.URL object
+    # mark 解析url
     u = _url.make_url(url)
 
-    u, plugins, kwargs = u._instantiate_plugins(kwargs)
+    # mark 实例化引擎插件 需要实现 sqlalchemy.engine.CreateEnginePlugin
+    # mark url中增加参数plugin=xxxx 或者create_engine的时候传入plugin=xxx
+    u, plugins, kwargs = u._instantiate_plugins(kwargs)  # noqa
 
+    # mark 从entrypoint加载方言驱动 (clickhouse就是从这里加载的)
     entrypoint = u._get_entrypoint()
     _is_async = kwargs.pop("_is_async", False)
+    # mark 如果实现了sqlalchemy.engin.interfaces.Dialect get_async_dialect_cls 或者 get_dialect_cls 可以根据URL对象获取新的方言
     if _is_async:
         dialect_cls = entrypoint.get_async_dialect_cls(u)
     else:
@@ -568,10 +573,12 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
 
     dialect_args = {}
     # consume dialect arguments from kwargs
+    # mark 获取方言类中使用kwargs的__init__方法参数 并从create_engine的kwargs中提取并填充
     for k in util.get_cls_kwargs(dialect_cls):
         if k in kwargs:
             dialect_args[k] = pop_kwarg(k)
 
+    # mark 获取DBAPI（实现PEP 249一个模块 py文件）
     dbapi = kwargs.pop("module", None)
     if dbapi is None:
         dbapi_args = {}
@@ -601,49 +608,67 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
 
     dialect_args["dbapi"] = dbapi
 
+    # mark 设置SQL编译器的表关联检查
     dialect_args.setdefault("compiler_linting", compiler.NO_LINTING)
     enable_from_linting = kwargs.pop("enable_from_linting", True)
     if enable_from_linting:
         dialect_args["compiler_linting"] ^= compiler.COLLECT_CARTESIAN_PRODUCTS
 
+    # mark 调用插件处理方言参数
     for plugin in plugins:
         plugin.handle_dialect_kwargs(dialect_cls, dialect_args)
 
+    # mark 创建方言类
     # create dialect
     dialect = dialect_cls(**dialect_args)
 
+    # mark 生成连接参数 该方法来自sqlalchemy.engine.interfaces.Dialect 必须返回ConnectArgsType实际上需要放回args和kwargs
     # assemble connection arguments
     (cargs_tup, cparams) = dialect.create_connect_args(u)
+    # mark 传入参数进行覆盖
     cparams.update(pop_kwarg("connect_args", {}))
     cargs = list(cargs_tup)  # allow mutability
 
     # look for existing pool or create
+    # mark 创建连接池
     pool = pop_kwarg("pool", None)
     if pool is None:
 
+        # mark 默认的连接工厂
         def connect(
             connection_record: Optional[ConnectionPoolEntry] = None,
         ) -> DBAPIConnection:
+            # mark connection_record 是给do_connect事件使用的 而真正调用连接方法已经已闭包的形式固定了
+            # mark 使用的连接参数 由方言的 create_connect_args 提供
+            # mark 连接事件监听器拦截
             if dialect._has_events:
+                # mark 执行do_connect事件回调
                 for fn in dialect.dispatch.do_connect:
                     connection = cast(
                         DBAPIConnection,
                         fn(dialect, connection_record, cargs, cparams),
                     )
+
+                    # mark 如果监听器返回了连接 则直接返回
                     if connection is not None:
                         return connection
-
+            # mark 这里会调用sqlalchemy.loaded_dbapi 加载dbapi 然后调用dbapi中的connect方法返回Connection对象
             return dialect.connect(*cargs, **cparams)
 
+        # mark 数据库连接工厂
         creator = pop_kwarg("creator", connect)
 
+        # mark 获取连接池类型 默认为 pool.QueuePool
         poolclass = pop_kwarg("poolclass", None)
         if poolclass is None:
             poolclass = dialect.get_dialect_pool_class(u)
+
+        # mark 组装连接池参数
         pool_args = {"dialect": dialect}
 
         # consume pool arguments from kwargs, translating a few of
         # the arguments
+        # mark 这里进行转换是为了跟引擎参数区分开
         translate = {
             "logging_name": "pool_logging_name",
             "echo": "echo_pool",
@@ -672,9 +697,10 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
             "The 'future' parameter passed to "
             "create_engine() may only be set to True."
         )
-
+    # mark 引擎类固定位engine.base.Engine
     engineclass = base.Engine
 
+    # mark 组装创建引擎的方法
     engine_args = {}
     for k in util.get_cls_kwargs(engineclass):
         if k in kwargs:
@@ -685,6 +711,7 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
     _initialize = kwargs.pop("_initialize", True)
 
     # all kwargs should be consumed
+    # mark 检查参数到这里参数应该被使用完
     if kwargs:
         raise TypeError(
             "Invalid argument(s) %s sent to create_engine(), "
@@ -699,13 +726,13 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
             )
         )
 
+    # mark 创建引擎实例
     engine = engineclass(pool, dialect, u, **engine_args)
 
     if _initialize:
-
+        # mark 调用方言的on_connect_url获取一个回调函数 该回调函数会用于连接池调用连接方法的时候被调用
         do_on_connect = dialect.on_connect_url(u)
         if do_on_connect:
-
             def on_connect(
                 dbapi_connection: DBAPIConnection,
                 connection_record: ConnectionPoolEntry,
@@ -714,7 +741,8 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
                 do_on_connect(dbapi_connection)
 
             event.listen(pool, "connect", on_connect)
-
+        
+        # mark 这里也是增加连接钩子 默认实现这里对设置的连接级别进行校验
         builtin_on_connect = dialect._builtin_onconnect()
         if builtin_on_connect:
             event.listen(pool, "connect", builtin_on_connect)
@@ -757,8 +785,9 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
         event.listen(
             pool, "connect", first_connect, _once_unless_exception=True
         )
-
+    # mark 引擎创建好之后调用方言的引擎已创建方法
     dialect_cls.engine_created(engine)
+
     if entrypoint is not dialect_cls:
         entrypoint.engine_created(engine)
 
@@ -769,7 +798,7 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
 
 
 def engine_from_config(
-    configuration: Dict[str, Any], prefix: str = "sqlalchemy.", **kwargs: Any
+        configuration: Dict[str, Any], prefix: str = "sqlalchemy.", **kwargs: Any
 ) -> Engine:
     """Create a new Engine instance using a configuration dictionary.
 

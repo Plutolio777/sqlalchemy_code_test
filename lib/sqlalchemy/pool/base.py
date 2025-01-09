@@ -157,29 +157,29 @@ class _CreatorWRecFnType(Protocol):
 
 
 class Pool(log.Identified, event.EventTarget):
-
     """Abstract base class for connection pools."""
 
     dispatch: dispatcher[Pool]
     echo: log._EchoFlagType
 
     _orig_logging_name: Optional[str]
+    # mark 类属性上的方言 默认 如果调用Pool._dialect 取的是这个
     _dialect: Union[_ConnDialect, Dialect] = _ConnDialect()
     _creator_arg: Union[_CreatorFnType, _CreatorWRecFnType]
     _invoke_creator: _CreatorWRecFnType
     _invalidate_time: float
 
     def __init__(
-        self,
-        creator: Union[_CreatorFnType, _CreatorWRecFnType],
-        recycle: int = -1,
-        echo: log._EchoFlagType = None,
-        logging_name: Optional[str] = None,
-        reset_on_return: _ResetStyleArgType = True,
-        events: Optional[List[Tuple[_ListenerFnType, str]]] = None,
-        dialect: Optional[Union[_ConnDialect, Dialect]] = None,
-        pre_ping: bool = False,
-        _dispatch: Optional[_DispatchCommon[Pool]] = None,
+            self,
+            creator: Union[_CreatorFnType, _CreatorWRecFnType],  # mark 池化对象（DBAPI.connect方法生成的连接）工厂
+            recycle: int = -1,  # mark 连接回收时间间隔
+            echo: log._EchoFlagType = None,  # noqa mark 是否记录日志
+            logging_name: Optional[str] = None,
+            reset_on_return: _ResetStyleArgType = True,  # mark 指定归还时采取的动作
+            events: Optional[List[Tuple[_ListenerFnType, str]]] = None,
+            dialect: Optional[Union[_ConnDialect, Dialect]] = None,  # mark 方言
+            pre_ping: bool = False,  # mark 是否开启预检查
+            _dispatch: Optional[_DispatchCommon[Pool]] = None,  # mark 指定Dispatcher
     ):
         """
         Construct a Pool.
@@ -284,8 +284,9 @@ class Pool(log.Identified, event.EventTarget):
             self.logging_name = self._orig_logging_name = logging_name
         else:
             self._orig_logging_name = None
-
+        # mark 创建日志实例
         log.instance_logger(self, echoflag=echo)
+        # mark 池化对象生成工厂
         self._creator = creator
         self._recycle = recycle
         self._invalidate_time = 0
@@ -301,17 +302,19 @@ class Pool(log.Identified, event.EventTarget):
         )
 
         self.echo = echo
-
+        # mark 进行dispatch的合并
         if _dispatch:
             self.dispatch._update(_dispatch, only_propagate=False)
         if dialect:
             self._dialect = dialect
+        # mark 增加监听事件
         if events:
             for fn, target in events:
                 event.listen(self, target, fn)
 
     @util.hybridproperty
     def _is_asyncio(self) -> bool:
+        # mark 如果是实例调用取的是self的 如果是类调用取的是Pool的
         return self._dialect.is_async
 
     @property
@@ -320,12 +323,16 @@ class Pool(log.Identified, event.EventTarget):
 
     @_creator.setter
     def _creator(
-        self, creator: Union[_CreatorFnType, _CreatorWRecFnType]
+            self, creator: Union[_CreatorFnType, _CreatorWRecFnType]
     ) -> None:
+        # mark 创建数据库引擎的时候会给默认的creator
+        # mark 1.先执行所有的do_connect事件
+        # mark 2.调用方言的connect方法 加载dbapi并使用dbapi中的connect方法正式建立连接
         self._creator_arg = creator
 
         # mypy seems to get super confused assigning functions to
         # attributes
+        # mark 这个是为了防止给定的creator工厂不支持传递ConnectionRecord参数而实现的包装
         self._invoke_creator = self._should_wrap_creator(creator)  # type: ignore  # noqa: E501
 
     @_creator.deleter
@@ -335,7 +342,7 @@ class Pool(log.Identified, event.EventTarget):
         del self._invoke_creator  # type: ignore[misc]
 
     def _should_wrap_creator(
-        self, creator: Union[_CreatorFnType, _CreatorWRecFnType]
+            self, creator: Union[_CreatorFnType, _CreatorWRecFnType]
     ) -> _CreatorWRecFnType:
         """Detect if creator accepts a single argument, or is sent
         as a legacy style no-arg function.
@@ -343,6 +350,7 @@ class Pool(log.Identified, event.EventTarget):
         """
 
         try:
+            # mark 获取工厂方法函数参数列表 FullArgSpec 实例
             argspec = util.get_callable_argspec(self._creator, no_self=True)
         except TypeError:
             creator_fn = cast(_CreatorFnType, creator)
@@ -356,6 +364,7 @@ class Pool(log.Identified, event.EventTarget):
 
         # look for the exact arg signature that DefaultStrategy
         # sends us
+        # mark 如果普通参数只有 ["connection_record"] 并且没有默认值 直接返回creator
         if (argspec[0], argspec[3]) == (["connection_record"], (None,)):
             return cast(_CreatorWRecFnType, creator)
         # or just a single positional
@@ -368,8 +377,11 @@ class Pool(log.Identified, event.EventTarget):
             return lambda rec: creator_fn()
 
     def _close_connection(
-        self, connection: DBAPIConnection, *, terminate: bool = False
+            self, connection: DBAPIConnection, *, terminate: bool = False
     ) -> None:
+        """
+        mark 关闭一个连接对象
+        """
         self.logger.debug(
             "%s connection %r",
             "Hard-closing" if terminate else "Closing",
@@ -377,8 +389,11 @@ class Pool(log.Identified, event.EventTarget):
         )
         try:
             if terminate:
+                # mark 终止连接
                 self._dialect.do_terminate(connection)
             else:
+
+                # mark 彻底关闭连接
                 self._dialect.do_close(connection)
         except BaseException as e:
             self.logger.error(
@@ -396,10 +411,10 @@ class Pool(log.Identified, event.EventTarget):
         return _ConnectionRecord(self)
 
     def _invalidate(
-        self,
-        connection: PoolProxiedConnection,
-        exception: Optional[BaseException] = None,
-        _checkin: bool = True,
+            self,
+            connection: PoolProxiedConnection,
+            exception: Optional[BaseException] = None,
+            _checkin: bool = True,
     ) -> None:
         """Mark all connections established within the generation
         of the given connection as invalidated.
@@ -418,7 +433,9 @@ class Pool(log.Identified, event.EventTarget):
             connection.invalidate(exception)
 
     def recreate(self) -> Pool:
-        """Return a new :class:`_pool.Pool`, of the same class as this one
+        """
+        mark 创建一个新的连接池 保留当前连接池的配置
+        Return a new :class:`_pool.Pool`, of the same class as this one
         and configured with identical creation arguments.
 
         This method is used in conjunction with :meth:`dispose`
@@ -430,7 +447,9 @@ class Pool(log.Identified, event.EventTarget):
         raise NotImplementedError()
 
     def dispose(self) -> None:
-        """Dispose of this pool.
+        """
+        mark 销毁当前连接池，释放所有与连接池关联的资源。
+        Dispose of this pool.
 
         This method leaves the possibility of checked-out connections
         remaining open, as it only affects connections that are
@@ -445,7 +464,9 @@ class Pool(log.Identified, event.EventTarget):
         raise NotImplementedError()
 
     def connect(self) -> PoolProxiedConnection:
-        """Return a DBAPI connection from the pool.
+        """
+        mark 从连接池中获取一个连接
+        Return a DBAPI connection from the pool.
 
         The connection is instrumented such that when its
         ``close()`` method is called, the connection will be returned to
@@ -464,16 +485,25 @@ class Pool(log.Identified, event.EventTarget):
         self._do_return_conn(record)
 
     def _do_get(self) -> ConnectionPoolEntry:
-        """Implementation for :meth:`get`, supplied by subclasses."""
+        """
+        mark 控制从池中取对象的逻辑 核心方法由子类实现
+        Implementation for :meth:`get`, supplied by subclasses.
+        """
 
         raise NotImplementedError()
 
     def _do_return_conn(self, record: ConnectionPoolEntry) -> None:
-        """Implementation for :meth:`return_conn`, supplied by subclasses."""
+        """
+        mark 将对象重新归还进池子的逻辑 核心方法由子类实现
+        Implementation for :meth:`return_conn`, supplied by subclasses.
+        """
 
         raise NotImplementedError()
 
     def status(self) -> str:
+        """
+        mark 获取池子状态的方法 有子类实现
+        """
         raise NotImplementedError()
 
 
@@ -583,7 +613,7 @@ class ManagesConnection:
         raise NotImplementedError()
 
     def invalidate(
-        self, e: Optional[BaseException] = None, soft: bool = False
+            self, e: Optional[BaseException] = None, soft: bool = False
     ) -> None:
         """Mark the managed connection as invalidated.
 
@@ -636,7 +666,6 @@ class ConnectionPoolEntry(ManagesConnection):
 
 
 class _ConnectionRecord(ConnectionPoolEntry):
-
     """Maintains a position in a connection pool which references a pooled
     connection.
 
@@ -716,9 +745,13 @@ class _ConnectionRecord(ConnectionPoolEntry):
         if TYPE_CHECKING:
             rec = cast(_ConnectionRecord, pool._do_get())
         else:
+            # mark 先调用池的_do_get方法生成一个ConnectionRecord
+            # mark ConnectionRecord 是连接的实际持有者
+            # mark 获取还是创建连接还是得池子说了算
             rec = pool._do_get()
 
         try:
+            # mark 调用ConnectionRecord的get_connection方法 获取dbapi连接
             dbapi_connection = rec.get_connection()
         except BaseException as err:
             with util.safe_reraise():
@@ -726,10 +759,13 @@ class _ConnectionRecord(ConnectionPoolEntry):
 
             # not reached, for code linters only
             raise
-
+        # mark 是否答应debug
         echo = pool._should_log_debug()
+
+        # mark 创建_ConnectionFairy
         fairy = _ConnectionFairy(pool, dbapi_connection, rec, echo)
 
+        # mark 这里rec弱引用fairy 而 fairy强引用rec 解除了循环依赖当fairy不再被使用的时候会被回收 且通过回调还是_finalize_fairy进行清理工作
         rec.fairy_ref = ref = weakref.ref(
             fairy,
             lambda ref: _finalize_fairy(
@@ -738,6 +774,8 @@ class _ConnectionRecord(ConnectionPoolEntry):
             if _finalize_fairy is not None
             else None,
         )
+
+        # mark 使用字典强引用这个弱引用 有助于控制弱引用不被垃圾回收掉使回收时机变得可控
         _strong_ref_connection_records[ref] = rec
         if echo:
             pool.logger.debug(
@@ -746,7 +784,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
         return fairy
 
     def _checkin_failed(
-        self, err: BaseException, _fairy_was_created: bool = True
+            self, err: BaseException, _fairy_was_created: bool = True
     ) -> None:
         self.invalidate(e=err)
         self.checkin(
@@ -754,6 +792,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
         )
 
     def checkin(self, _fairy_was_created: bool = True) -> None:
+        # mark 这个判断条件是为了在某些池子创建的时候就建立好连接 这个时候还没有fairy需要支持无条件checkin
         if self.fairy_ref is None and _fairy_was_created:
             # _fairy_was_created is False for the initial get connection phase;
             # meaning there was no _ConnectionFairy and we must unconditionally
@@ -771,10 +810,12 @@ class _ConnectionRecord(ConnectionPoolEntry):
             finalizer = self.finalize_callback.pop()
             if connection is not None:
                 finalizer(connection)
+        # mark 调用池子dispatch的checkin方法
         if pool.dispatch.checkin:
             pool.dispatch.checkin(connection, self)
 
-        pool._return_conn(self)
+        # mark 调用池子方法归还record
+        pool._return_conn(self)  #noqa
 
     @property
     def in_use(self) -> bool:
@@ -789,7 +830,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
             self.__close()
 
     def invalidate(
-        self, e: Optional[BaseException] = None, soft: bool = False
+            self, e: Optional[BaseException] = None, soft: bool = False
     ) -> None:
         # already invalidated
         if self.dbapi_connection is None:
@@ -837,25 +878,27 @@ class _ConnectionRecord(ConnectionPoolEntry):
         # invalidation need a sleep of at least this long between initial start
         # time and invalidation for the logic below to work reliably.
 
+        # mark 没有连接则建立
         if self.dbapi_connection is None:
             self.info.clear()  # type: ignore  # our info is always present
             self.__connect()
-        elif (
-            self.__pool._recycle > -1
-            and time.time() - self.starttime > self.__pool._recycle
-        ):
+
+        # mark 当前连接到达回收时间 需要进行回收
+        elif (self.__pool._recycle > -1 and time.time() - self.starttime > self.__pool._recycle): # noqa
             self.__pool.logger.info(
                 "Connection %r exceeded timeout; recycling",
                 self.dbapi_connection,
             )
             recycle = True
-        elif self.__pool._invalidate_time > self.starttime:
+        # mark 连接池无效 需要进行回收
+        elif self.__pool._invalidate_time > self.starttime: # noqa
             self.__pool.logger.info(
                 "Connection %r invalidated due to pool invalidation; "
                 + "recycling",
                 self.dbapi_connection,
             )
             recycle = True
+        # mark
         elif self._soft_invalidate_time > self.starttime:
             self.__pool.logger.info(
                 "Connection %r invalidated due to local soft invalidation; "
@@ -864,6 +907,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
             )
             recycle = True
 
+        # mark 回收连接 调用__close回收连接 回收之后再次进行连接
         if recycle:
             self.__close(terminate=True)
             self.info.clear()  # type: ignore  # our info is always present
@@ -875,13 +919,16 @@ class _ConnectionRecord(ConnectionPoolEntry):
 
     def _is_hard_or_soft_invalidated(self) -> bool:
         return (
-            self.dbapi_connection is None
-            or self.__pool._invalidate_time > self.starttime
-            or (self._soft_invalidate_time > self.starttime)
+                self.dbapi_connection is None
+                or self.__pool._invalidate_time > self.starttime
+                or (self._soft_invalidate_time > self.starttime)
         )
 
+    # mark 这个是销毁连接
     def __close(self, *, terminate: bool = False) -> None:
         self.finalize_callback.clear()
+
+        # mark 调用close事件
         if self.__pool.dispatch.close:
             self.__pool.dispatch.close(self.dbapi_connection, self)
         assert self.dbapi_connection is not None
@@ -890,6 +937,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
         )
         self.dbapi_connection = None
 
+    # mark 获取dbapi连接
     def __connect(self) -> None:
         pool = self.__pool
 
@@ -898,6 +946,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
         self.dbapi_connection = None
         try:
             self.starttime = time.time()
+            # mark 调用获取dbapi连接
             self.dbapi_connection = connection = pool._invoke_creator(self)
             pool.logger.debug("Created new connection %r", connection)
             self.fresh = True
@@ -907,6 +956,7 @@ class _ConnectionRecord(ConnectionPoolEntry):
         else:
             # in SQLAlchemy 1.4 the first_connect event is not used by
             # the engine, so this will usually not be set
+            # mark 执行first_connect事件
             if pool.dispatch.first_connect:
                 pool.dispatch.first_connect.for_modify(
                     pool.dispatch
@@ -914,21 +964,22 @@ class _ConnectionRecord(ConnectionPoolEntry):
 
             # init of the dialect now takes place within the connect
             # event, so ensure a mutex is used on the first run
+            # mark 执行connect事件
             pool.dispatch.connect.for_modify(
                 pool.dispatch
             )._exec_w_sync_on_first_run(self.dbapi_connection, self)
 
 
 def _finalize_fairy(
-    dbapi_connection: Optional[DBAPIConnection],
-    connection_record: Optional[_ConnectionRecord],
-    pool: Pool,
-    ref: Optional[
-        weakref.ref[_ConnectionFairy]
-    ],  # this is None when called directly, not by the gc
-    echo: Optional[log._EchoFlagType],
-    transaction_was_reset: bool = False,
-    fairy: Optional[_ConnectionFairy] = None,
+        dbapi_connection: Optional[DBAPIConnection],
+        connection_record: Optional[_ConnectionRecord],
+        pool: Pool,
+        ref: Optional[
+            weakref.ref[_ConnectionFairy]
+        ],  # this is None when called directly, not by the gc
+        echo: Optional[log._EchoFlagType],
+        transaction_was_reset: bool = False,
+        fairy: Optional[_ConnectionFairy] = None,
 ) -> None:
     """Cleanup for a :class:`._ConnectionFairy` whether or not it's already
     been garbage collected.
@@ -941,6 +992,7 @@ def _finalize_fairy(
 
     is_gc_cleanup = ref is not None
 
+    # mark gc回收触发
     if is_gc_cleanup:
         assert ref is not None
         _strong_ref_connection_records.pop(ref, None)
@@ -950,22 +1002,24 @@ def _finalize_fairy(
         assert dbapi_connection is None
         dbapi_connection = connection_record.dbapi_connection
 
+    # mark 手动调用fairy关闭
     elif fairy:
         _strong_ref_connection_records.pop(weakref.ref(fairy), None)
 
     # null pool is not _is_asyncio but can be used also with async dialects
     dont_restore_gced = pool._dialect.is_async
 
+    # mark 异步方言
     if dont_restore_gced:
         detach = connection_record is None or is_gc_cleanup
         can_manipulate_connection = not is_gc_cleanup
         can_close_or_terminate_connection = (
-            not pool._dialect.is_async or pool._dialect.has_terminate
+                not pool._dialect.is_async or pool._dialect.has_terminate
         )
         requires_terminate_for_close = (
-            pool._dialect.is_async and pool._dialect.has_terminate
+                pool._dialect.is_async and pool._dialect.has_terminate
         )
-
+    # mark 同步方言
     else:
         detach = connection_record is None
         can_manipulate_connection = can_close_or_terminate_connection = True
@@ -987,24 +1041,28 @@ def _finalize_fairy(
                     echo,
                 )
             assert fairy.dbapi_connection is dbapi_connection
-
-            fairy._reset(
+            # mark 1.进行事件通知  2.回滚或者提交事务 有池的reset_on_return控制
+            fairy._reset(  # noqa
                 pool,
                 transaction_was_reset=transaction_was_reset,
                 terminate_only=detach,
                 asyncio_safe=can_manipulate_connection,
             )
 
+            # mark 如果当前的这个fairy对象是一个已经被剥离的对象
             if detach:
+
+                # mark 但是connection_record又存在 这里有就可能矛盾 直接进行剥离
                 if connection_record:
                     fairy._pool = pool
                     fairy.detach()
 
+                # mark 比例的对象如果可以关闭或者终止 将会直接销毁
                 if can_close_or_terminate_connection:
                     if pool.dispatch.close_detached:
                         pool.dispatch.close_detached(dbapi_connection)
-
-                    pool._close_connection(
+                    # mark 销毁链接
+                    pool._close_connection(  # noqa
                         dbapi_connection,
                         terminate=requires_terminate_for_close,
                     )
@@ -1023,9 +1081,9 @@ def _finalize_fairy(
                     "The garbage collector is trying to clean up "
                     f"non-checked-in connection {dbapi_connection!r}, "
                     f"""which will be {
-                        'dropped, as it cannot be safely terminated'
-                        if not can_close_or_terminate_connection
-                        else 'terminated'
+                    'dropped, as it cannot be safely terminated'
+                    if not can_close_or_terminate_connection
+                    else 'terminated'
                     }.  """
                     "Please ensure that SQLAlchemy pooled connections are "
                     "returned to "
@@ -1036,6 +1094,7 @@ def _finalize_fairy(
                 pool.logger.error(message)
                 util.warn(message)
 
+    # mark 归还连接record
     if connection_record and connection_record.fairy_ref is not None:
         connection_record.checkin()
 
@@ -1043,6 +1102,7 @@ def _finalize_fairy(
     # test/engine/test_pool.py::PoolEventsTest::test_checkin_event_gc[True]
     # which actually started failing when pytest warnings plugin was
     # turned on, due to util.warn() above
+    # mark 清理资源
     fairy.dbapi_connection = fairy._connection_record = None  # type: ignore
     del dbapi_connection
     del connection_record
@@ -1074,7 +1134,6 @@ class PoolProxiedConnection(ManagesConnection):
     __slots__ = ()
 
     if typing.TYPE_CHECKING:
-
         def commit(self) -> None:
             ...
 
@@ -1147,9 +1206,9 @@ class _AdhocProxiedConnection(PoolProxiedConnection):
     _connection_record: ConnectionPoolEntry
 
     def __init__(
-        self,
-        dbapi_connection: DBAPIConnection,
-        connection_record: ConnectionPoolEntry,
+            self,
+            dbapi_connection: DBAPIConnection,
+            connection_record: ConnectionPoolEntry,
     ):
         self.dbapi_connection = dbapi_connection
         self._connection_record = connection_record
@@ -1174,7 +1233,7 @@ class _AdhocProxiedConnection(PoolProxiedConnection):
         return self._is_valid
 
     def invalidate(
-        self, e: Optional[BaseException] = None, soft: bool = False
+            self, e: Optional[BaseException] = None, soft: bool = False
     ) -> None:
         self._is_valid = False
 
@@ -1190,7 +1249,6 @@ class _AdhocProxiedConnection(PoolProxiedConnection):
 
 
 class _ConnectionFairy(PoolProxiedConnection):
-
     """Proxies a DBAPI connection and provides return-on-dereference
     support.
 
@@ -1230,16 +1288,21 @@ class _ConnectionFairy(PoolProxiedConnection):
     _echo: log._EchoFlagType
 
     def __init__(
-        self,
-        pool: Pool,
-        dbapi_connection: DBAPIConnection,
-        connection_record: _ConnectionRecord,
-        echo: log._EchoFlagType,
+            self,
+            pool: Pool,
+            dbapi_connection: DBAPIConnection,
+            connection_record: _ConnectionRecord,
+            echo: log._EchoFlagType,
     ):
+        # mark 连接池对象
         self._pool = pool
+        # mark 计数器
         self._counter = 0
+        # mark dbapi对象
         self.dbapi_connection = dbapi_connection
+        # mark 连接记录对象
         self._connection_record = connection_record
+        # mark debug信息是否打印
         self._echo = echo
 
     _connection_record: Optional[_ConnectionRecord]
@@ -1261,28 +1324,30 @@ class _ConnectionFairy(PoolProxiedConnection):
 
     @classmethod
     def _checkout(
-        cls,
-        pool: Pool,
-        threadconns: Optional[threading.local] = None,
-        fairy: Optional[_ConnectionFairy] = None,
+            cls,
+            pool: Pool,
+            threadconns: Optional[threading.local] = None,
+            fairy: Optional[_ConnectionFairy] = None,
     ) -> _ConnectionFairy:
 
         if not fairy:
+            # mark 创建一个fairy
             fairy = _ConnectionRecord.checkout(pool)
 
+            # mark 使用thread local进行线程隔离
             if threadconns is not None:
                 threadconns.current = weakref.ref(fairy)
 
         assert (
-            fairy._connection_record is not None
+                fairy._connection_record is not None
         ), "can't 'checkout' a detached connection fairy"
         assert (
-            fairy.dbapi_connection is not None
+                fairy.dbapi_connection is not None
         ), "can't 'checkout' an invalidated connection fairy"
 
         fairy._counter += 1
         if (
-            not pool.dispatch.checkout and not pool._pre_ping
+                not pool.dispatch.checkout and not pool._pre_ping
         ) or fairy._counter != 1:
             return fairy
 
@@ -1294,6 +1359,7 @@ class _ConnectionFairy(PoolProxiedConnection):
 
         attempts = 2
 
+        # mark 进行连接的pre_ping操作
         while attempts > 0:
             connection_is_fresh = fairy._connection_record.fresh
             fairy._connection_record.fresh = False
@@ -1305,7 +1371,7 @@ class _ConnectionFairy(PoolProxiedConnection):
                                 "Pool pre-ping on connection %s",
                                 fairy.dbapi_connection,
                             )
-                        result = pool._dialect._do_ping_w_event(
+                        result = pool._dialect._do_ping_w_event( # noqa
                             fairy.dbapi_connection
                         )
                         if not result:
@@ -1389,6 +1455,7 @@ class _ConnectionFairy(PoolProxiedConnection):
     def _checkout_existing(self) -> _ConnectionFairy:
         return _ConnectionFairy._checkout(self._pool, fairy=self)
 
+    # mark 连接不用了调用该方法来归还连接
     def _checkin(self, transaction_was_reset: bool = False) -> None:
         _finalize_fairy(
             self.dbapi_connection,
@@ -1400,16 +1467,18 @@ class _ConnectionFairy(PoolProxiedConnection):
             fairy=self,
         )
 
+    # mark 连接不用了调用该方法来归还连接
     def _close(self) -> None:
         self._checkin()
 
     def _reset(
-        self,
-        pool: Pool,
-        transaction_was_reset: bool,
-        terminate_only: bool,
-        asyncio_safe: bool,
+            self,
+            pool: Pool,
+            transaction_was_reset: bool,  # mark 表示是否需要重置事务
+            terminate_only: bool,  # mark 表示是否仅销毁连接而不是直接归还
+            asyncio_safe: bool,
     ) -> None:
+        # mark reset事件回调
         if pool.dispatch.reset:
             pool.dispatch.reset(
                 self.dbapi_connection,
@@ -1424,7 +1493,9 @@ class _ConnectionFairy(PoolProxiedConnection):
         if not asyncio_safe:
             return
 
-        if pool._reset_on_return is reset_rollback:
+        # mark 归还或关闭时回滚事务
+        if pool._reset_on_return is reset_rollback:  # noqa
+            # mark 如果事务被重置 不需要执行
             if transaction_was_reset:
                 if self._echo:
                     pool.logger.debug(
@@ -1437,14 +1508,17 @@ class _ConnectionFairy(PoolProxiedConnection):
                         "Connection %s rollback-on-return",
                         self.dbapi_connection,
                     )
+                # mark 调用方言进行回滚操作
                 pool._dialect.do_rollback(self)
-        elif pool._reset_on_return is reset_commit:
+        # mark 归还或关闭时提交事务
+        elif pool._reset_on_return is reset_commit:  # noqa
             if self._echo:
                 pool.logger.debug(
                     "Connection %s commit-on-return",
                     self.dbapi_connection,
                 )
-            pool._dialect.do_commit(self)
+            # mark 事务提交
+            pool._dialect.do_commit(self)  # noqa
 
     @property
     def _logger(self) -> log._IdentifiedLoggerType:
@@ -1473,7 +1547,7 @@ class _ConnectionFairy(PoolProxiedConnection):
             return self._connection_record.record_info
 
     def invalidate(
-        self, e: Optional[BaseException] = None, soft: bool = False
+            self, e: Optional[BaseException] = None, soft: bool = False
     ) -> None:
 
         if self.dbapi_connection is None:
@@ -1497,19 +1571,27 @@ class _ConnectionFairy(PoolProxiedConnection):
         return getattr(self.dbapi_connection, key)
 
     def detach(self) -> None:
+        """
+        mark 将连接从连接池中剥离出来 不再受连接池管理
+        """
         if self._connection_record is not None:
             rec = self._connection_record
+            # mark 解除关系
             rec.fairy_ref = None
+            # mark 将这个dbapi为自己管理
             rec.dbapi_connection = None
             # TODO: should this be _return_conn?
+            # mark 将record归还到池子中
             self._pool._do_return_conn(self._connection_record)
 
             # can't get the descriptor assignment to work here
             # in pylance.  mypy is OK w/ it
+
             self.info = self.info.copy()  # type: ignore
 
             self._connection_record = None
 
+            # mark detach事件回调
             if self._pool.dispatch.detach:
                 self._pool.dispatch.detach(self.dbapi_connection, rec)
 
