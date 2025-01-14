@@ -1,0 +1,150 @@
+{
+  "引擎执行选项 schema_translate_map 用于转换schema": [
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 227,
+      "name": "schema_translate_map",
+      "bookmarkType": "DEFAULT"
+    }
+  ],
+  "sqlalchemly引擎execution_options选项扩展点位置": [
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 1818,
+      "name": "yield_per-使用流式返回结果并控制返回的数据集大小",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 1822,
+      "name": "stream_results-指定结果是否使用流式返回",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 1824,
+      "name": "max_row_buffer",
+      "bookmarkType": "DEFAULT"
+    }
+  ],
+  "sqlalchemy事件分发机制所有事件调度位置": [
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/sql/base.py",
+      "linenumber": 1299,
+      "name": "dll.event.before_parent_attach事件回调-schemaItem附加到prent之前",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 3207,
+      "name": "connect.event.engine_disposed事件回调-引擎dispose",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 1481,
+      "name": "pool.event.reset事件回调-连接重置",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 1594,
+      "name": "pool.event.detach事件回调-连接剥离",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 1061,
+      "name": "pool.event.close_detached事件回调-关闭已剥离连接",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 813,
+      "name": "pool.event.check事件回调-连接归还到pool",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/base.py",
+      "linenumber": 182,
+      "name": "engin.events.ConnectionEvents.engine_connect事件回调-通过引擎创建引擎层面的连接代理时回调",
+      "bookmarkType": "DEFAULT"
+    }
+  ],
+  "sqlalchemy_code_test": [
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/create.py",
+      "linenumber": 116,
+      "name": "创建数据库引擎核心方法",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/event/base.py",
+      "linenumber": 289,
+      "name": "dispatcher实例化过程",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/event/api.py",
+      "linenumber": 42,
+      "name": "监听器的注册方法",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/create.py",
+      "linenumber": 645,
+      "name": "数据库调用dbapi.connect方法事件监听点",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 1374,
+      "name": "pre_ping调用的时候支持的时间回调",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/pool/base.py",
+      "linenumber": 931,
+      "name": "连接关闭close event的时候回调接入点",
+      "bookmarkType": "DEFAULT"
+    }
+  ],
+  "方言钩子调用点": [
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/reflection.py",
+      "linenumber": 927,
+      "name": "获取给定schema和指定表名的所有colums信息",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/default.py",
+      "linenumber": 874,
+      "name": "根据给定的schema获取所有的表名称",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/default.py",
+      "linenumber": 875,
+      "name": "根据给定的schema获取所有的临时表名",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/default.py",
+      "linenumber": 877,
+      "name": "根据给定的schema获取所有的视图名称",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/default.py",
+      "linenumber": 878,
+      "name": "根据给定的schema获取所有临时视图名称",
+      "bookmarkType": "DEFAULT"
+    },
+    {
+      "fileDescriptor": "$/lib/sqlalchemy/engine/default.py",
+      "linenumber": 880,
+      "name": "根据给定的schema获取物化视图名称",
+      "bookmarkType": "DEFAULT"
+    }
+  ]
+}

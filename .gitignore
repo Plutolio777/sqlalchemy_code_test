@@ -29,7 +29,7 @@ sqlnet.log
 test/test_schema.db
 *test_schema.db
 .idea/*
-!.idea/*bookmark.json
+!.idea/bookmarks.json
 /Pipfile*
 /.pytest_cache/
 /pip-wheel-metadata/
